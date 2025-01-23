@@ -1,17 +1,21 @@
 import json
 import math
+import logging
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import KFold
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import mean_squared_error
 from sklearn.neighbors import NearestNeighbors
+from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
 
 
 class DataHandler:
     def __init__(self, cfg_path):
+        logging.basicConfig(level=logging.INFO)
+
         if not isinstance(cfg_path, str):
             raise ValueError(f"{cfg_path} must be a string pointing to the configuration file")
 
@@ -27,9 +31,16 @@ class DataHandler:
         self.metadata = None
         self.data = None
 
+        logging.info("\nLoading the CSV Dataframes\n")
         self.load_data()
+        self.non_gene_cols = self.metadata.columns.tolist()
+        self.predict_cols = ['y']
+
+        logging.info("\nPreforming Initial Data Exploration\n")
         self.analyze_data()
+        logging.info("\nCompleteing Missing Values\n")
         self.handle_missing_values()
+        logging.info("\nNormalzing The Data\n")
         self.normalize_data()
 
     def load_data(self):
@@ -53,6 +64,7 @@ class DataHandler:
         Preprocess the meta-data by removing trivial columns, renaming columns, and binarize the response values
         :return: None (modifies self.metadata)
         """
+        logging.info("Checking for single-value columns in the dataset")
         # Identify singular columns (columns with only one unique value)
         singular_cols = [col for col in self.metadata.columns if self.metadata[col].nunique() == 1]
         if singular_cols:
@@ -61,12 +73,14 @@ class DataHandler:
             for col_i, col in enumerate(singular_cols):
                 axs[col_i].hist(self.metadata[col])
                 axs[col_i].set_title(col.title())
-            plt.show()
+            plt.show(block=False)
+            plt.pause(3)
+            plt.close()
 
-            print(f"Removing columns with single value: {singular_cols}")
+            logging.info(f"Removing columns with single value: {singular_cols}")
             self.metadata.drop(columns=singular_cols, inplace=True)
         else:
-            print("No singular columns found in metadata.")
+            logging.info("No singular columns found in metadata.")
 
         self.metadata.rename(columns={'disease activity score (das28)': 'das'}, inplace=True)
         self.metadata['y'] = self.metadata['Response status'].str.lower().map({'responder': 1, 'non_responder': 0})
@@ -78,9 +92,9 @@ class DataHandler:
         :return: None (modifies self.data)
         """
         if self.cfg.get('norm_genes', False):
-            gene_columns = self.genedata.columns.difference(['SampleID', 'y'])
+            gene_columns = self.genedata.columns.difference(self.non_gene_cols + self.predict_cols)
             scaler = StandardScaler()
-            self.data[gene_columns] = scaler.fit_transform(self.genedata[gene_columns])
+            self.data[gene_columns] = scaler.fit_transform(self.data[gene_columns])
 
         self.data['das'] = (self.data['das'] - self.data['das'].mean(skipna=True)) / self.data['das'].std(skipna=True)
 
@@ -94,11 +108,18 @@ class DataHandler:
         # Remove rows of all NaNs
         all_nan_rows = len(self.data[self.data['y'].isna() & self.data['das'].isna()])
         if all_nan_rows < rows_percent_to_remove*len(self.data):
-            print(f"Removing {all_nan_rows} rows with missing Response and disease score")
+            logging.info(f"Removing {all_nan_rows} rows with missing Response and disease score")
             self.data = self.data[~(self.data['y'].isna() & self.data['das'].isna())].reset_index(drop=True)
 
         # Visualize response distribution
-        self.data['y'].fillna('NaN').replace({0: False, 1: True}).value_counts(dropna=False).plot(kind='bar')
+        # plt.figure()
+        self.data.assign(
+            y=self.data['y'].fillna('NaN').replace({0: False, 1: True})
+        ).groupby(
+            ['y', 'Gender']
+        ).size().unstack(fill_value=0).plot(
+            kind='bar', edgecolor='k'
+        )
         plt.title('Response Status Distribution')
         plt.ylabel('Count')
         plt.xlabel('Response Status')
@@ -113,7 +134,8 @@ class DataHandler:
         plt.show()
 
         # Visualize gene correlation
-        correlation = self.data.drop(columns=['SampleID', 'das', 'y']).corrwith(self.data['y'])
+        logging.info(f"Exploring genes correlation (calculating correlation, may take some time)")
+        correlation = self.data.drop(columns=self.non_gene_cols).corrwith(self.data['y'])
         self.top_correlations = pd.concat([
             correlation[correlation > 0].sort_values(ascending=False).head(10),
             correlation[correlation < 0].sort_values().head(10)
@@ -143,9 +165,9 @@ class DataHandler:
         data_nan = self.data[self.data['y'].isna()]  # Rows where y is NaN
 
         # 2. Extract features (excluding SampleID, das, and y)
-        features_non_nan = data_non_nan.drop(columns=['SampleID', 'das', 'y'])
+        features_non_nan = data_non_nan.drop(columns=self.non_gene_cols)
         features_non_nan = features_non_nan.to_numpy().astype(np.float64)
-        features_nan = data_nan.drop(columns=['SampleID', 'das', 'y'])
+        features_nan = data_nan.drop(columns=self.non_gene_cols)
 
         # 3. Initialize a list to store results
         nearest_neighbors = []
@@ -234,7 +256,7 @@ class DataHandler:
                 self.data.at[i, f'y_augment_{high_mse}'] = row['y']
                 self.data.at[i, f'y_augment_{low_mse}'] = row['y']
 
-        print(nearest_neighbors_df[['nearest_mse','nearest_cos', 'nearest_knn']])
+        self.predict_cols.extend([f'y_augment_{low_mse}', f'y_augment_{high_mse}'])
 
     def visualize_gene_distribution(self, gene):
         """
@@ -251,13 +273,15 @@ class DataHandler:
         plt.ylabel('Frequency')
         plt.show()
 
-    def train_test_split(self, y_col='y', feature_cols=[], test_size=0.2, random_state=42):
+    def train_test_split(self, y_col='y', feature_cols=None, test_size=0.2, random_state=42):
         """
         Split the data into training and testing sets.
         :param test_size: Proportion of the data to include in the test split.
         :param random_state: Random seed for reproducibility.
         """
-        from sklearn.model_selection import train_test_split
+        if not feature_cols:
+            feature_cols = self.data.columns.to_list()
+            feature_cols = [feat for feat in feature_cols if feat not in self.predict_cols and 'ID' not in feat]
 
         X = self.data[self.data[y_col].notna()][feature_cols]
         y = self.data[self.data[y_col].notna()][y_col]
@@ -268,12 +292,16 @@ class DataHandler:
 
         return X_train, X_test, y_train, y_test
 
-    def cross_val_split(self, y_col='y', feature_cols=[], n_splits=5, random_state=42):
+    def cross_val_split(self, y_col='y', feature_cols=None, n_splits=5, random_state=42):
         """
         Split the data into cross-validation sets.
         :param n_splits: Number of splits for cross-validation.
         :param random_state: Random seed for reproducibility.
         """
+        if not feature_cols:
+            feature_cols = self.data.columns.to_list()
+            feature_cols = [feat for feat in feature_cols if 'y' not in feat and 'ID' not in feat]
+
         X = self.data[self.data[y_col].notna()][feature_cols]
         y = self.data[self.data[y_col].notna()][y_col]
 
@@ -291,5 +319,5 @@ class DataHandler:
 
         return cv_splits
 
-
-data_handler = DataHandler('E:\Studies\pythonProject\drug-response-analysis\cfg.json')
+    def y_cols(self):
+        return self.predict_cols

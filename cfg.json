@@ -1,4 +1,5 @@
 {
-  "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\gene_expression.csv",
-  "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\meta_data.csv"
+  "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\gene_expression.csv",
+  "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\meta_data.csv",
+  "norm_genes": false
 }
