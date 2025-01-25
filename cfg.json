@@ -1,8 +1,25 @@
 {
+  "normalized_data_path": null,
   "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\gene_expression.csv",
   "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\meta_data.csv",
+  "output_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\output",
+  "plot_EDA": true,
+  "save_plots": true,
+  "save_data": true,
   "norm_genes": true,
   "features_to_extract": 10,
-  "pca_var_threh": 0.9
-
+  "test_size": 0.15,
+  "NeuralNetwork_cfg": {
+    "num_epochs": 10,
+    "lr": 0.001,
+    "weight_decay": 1e-4
+  },
+  "models_to_save": ["NeuralNetwork", "LogisticRegression_L1"],
+  "chosen_features": ["1555656_at", "216883_x_at", "226888_at", "210715_s_at", "221566_s_at",
+    "244307_s_at", "235705_at", "235695_at", "1569527_at", "222841_s_at"],
+  "pca_features": {
+    "pca": false,
+    "n_features": null,
+    "pca_var_threh": 0.9
+  }
 }
