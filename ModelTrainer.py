@@ -1,7 +1,8 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score, confusion_matrix
+from sklearn.metrics import precision_score, recall_score, roc_auc_score, confusion_matrix
+from SimpleClassificationNetwork import SimpleClassificationNetwork
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -9,64 +10,20 @@ import logging
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
-class SimpleClassificationNetwork(nn.Module):
-    def __init__(self, input_size, num_classes):
-        super(SimpleClassificationNetwork, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input_size, 256),  # Input layer
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, 128),  # Hidden layer 1
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 64),  # Hidden layer 2
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(64, num_classes),  # Output layer
-        )
-        self.softmax = nn.Softmax(dim=1)  # Softmax activation for probabilities
-
-    def forward(self, x):
-        x = self.model(x)
-        return self.softmax(x)
-
-def train_nn_model(x_train, x_test, y_train, y_test, input_size, num_classes):
-    """Train and evaluate the neural network."""
-    # Convert data to PyTorch tensors
-    x_train_tensor = torch.tensor(x_train.values, dtype=torch.float32)
-    x_test_tensor = torch.tensor(x_test.values, dtype=torch.float32)
-    y_train_tensor = torch.tensor(y_train.values, dtype=torch.long)
-    y_test_tensor = torch.tensor(y_test.values, dtype=torch.long)
-
-    # Initialize model, loss function, and optimizer
-    model = SimpleClassificationNetwork(input_size, num_classes)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)  # L2 regularization
-
-    # Training loop
-    num_epochs = 10
-    for epoch in range(num_epochs):
-        model.train()
-        optimizer.zero_grad()
-        outputs = model(x_train_tensor)
-        loss = criterion(outputs, y_train_tensor)
-        loss.backward()
-        optimizer.step()
-
-    # Evaluate model
-    model.eval()
-    with torch.no_grad():
-        y_pred_prob = model(x_test_tensor)
-        y_pred = torch.argmax(y_pred_prob, dim=1).numpy()
-        return y_pred, y_pred_prob.numpy()
+import os
+import joblib
+import json
 
 
 class ModelTrainer:
-    def __init__(self):
+    def __init__(self, FeatureExtractor):
         logging.basicConfig(level=logging.INFO)
         self.pca = None
         self.pca_n_features = None
+        self.feature_extractor = FeatureExtractor
+        self.nn_cfg = self.feature_extractor.cfg.get("NeuralNetwork_cfg", {})
+        self.save_plots = self.feature_extractor.cfg.get("save_plots", False)
+        self.output_path = self.feature_extractor.cfg.get("output_path")
 
     def initialize_result_dict(self):
         self.results = {
@@ -89,11 +46,49 @@ class ModelTrainer:
 
         return x_pca
 
+    def train_nn_model(self, x_train, y_train):
+        """Train and evaluate the neural network."""
+        input_size = x_train.shape[1]  # Number of features
+
+        # Get Training Params
+        lr = self.nn_cfg.get("lr", 0.001)
+        weight_decay = self.nn_cfg.get("weight_decay", 1e-4)
+        num_epochs = self.nn_cfg.get("num_epochs", 10)
+        num_classes = self.nn_cfg.get("num_classes", 2)
+
+        # Convert data to PyTorch tensors
+        x_train_tensor = torch.tensor(x_train.values, dtype=torch.float32)
+        y_train_tensor = torch.tensor(y_train.values, dtype=torch.long)
+
+        # Initialize model, loss function, and optimizer
+        model = SimpleClassificationNetwork(input_size, num_classes)
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+        # Training loop
+        for epoch in range(num_epochs):
+            model.train()
+            optimizer.zero_grad()
+            outputs = model(x_train_tensor)
+            loss = criterion(outputs, y_train_tensor)
+            loss.backward()
+            optimizer.step()
+
+        return model
+
+    def eval_nn(self, model, x_test):
+        x_test_tensor = torch.tensor(x_test.values, dtype=torch.float32)
+
+        # Evaluate model
+        model.eval()
+        with torch.no_grad():
+            y_pred_prob = model(x_test_tensor)
+            y_pred = torch.argmax(y_pred_prob, dim=1).numpy()
+            return y_pred, y_pred_prob.numpy().max(axis=1)
+
     def train(self, cv_splits, y_col, pca=False):
 
         self.initialize_result_dict()
-        input_size = cv_splits[0][0].shape[1]  # Number of features
-        num_classes = 2  # Binary case
         for x_train, x_test, y_train, y_test in cv_splits:
             if pca:
                 x_train = self.convert_pca(x_train)
@@ -115,16 +110,18 @@ class ModelTrainer:
             self.evaluate_model(xgb_model, x_test, y_test, "XGBoost")
 
             # Neural Network
-            y_pred, y_pred_prob = train_nn_model(x_train, x_test, y_train, y_test, input_size, num_classes)
-            self.evaluate_model(None, x_test, y_test, "NeuralNetwork", y_pred, y_pred_prob)
+            nn_model = self.train_nn_model(x_train, y_train)
+            self.evaluate_model(nn_model, x_test, y_test, "NeuralNetwork")
 
         # Average results across CV splits
         self.plot_results(len(y_train), pca, y_col)
         return self.results
 
-    def evaluate_model(self, model, x_test, y_test, model_name, y_pred=None, y_pred_prob=None):
+    def evaluate_model(self, model, x_test, y_test, model_name):
         """Evaluate a model and store metrics."""
-        if model:
+        if model_name == "NeuralNetwork":
+            y_pred, y_pred_prob = self.eval_nn(model, x_test)
+        else:
             y_pred = model.predict(x_test)
             y_pred_prob = model.predict_proba(x_test)[:, 1] if hasattr(model, "predict_proba") else None
 
@@ -138,12 +135,8 @@ class ModelTrainer:
         self.results[model_name]["specificity"].append(specificity)
         self.results[model_name]["precision"].append(precision_score(y_test, y_pred, average='binary', zero_division=0))
         self.results[model_name]["recall"].append(recall_score(y_test, y_pred, average='binary', zero_division=0))
-        if model:
-            self.results[model_name]["auc"].append(
-                roc_auc_score(y_test, y_pred_prob) if y_pred_prob is not None else None)
-        else:
-            self.results[model_name]["auc"].append(
-                roc_auc_score(y_test, y_pred_prob.max(axis=1)))
+        self.results[model_name]["auc"].append(
+            roc_auc_score(y_test, y_pred_prob) if y_pred_prob is not None else None)
 
     def plot_results(self, N_y, pca=False, y_col=None):
         """Plot accuracy, sensitivity, and specificity as boxplots."""
@@ -192,7 +185,11 @@ class ModelTrainer:
         )
 
         plt.tight_layout()
-        plt.show()
+        plt.show(block=False)
+        plt.savefig(os.path.join(self.output_path, f"{title}.png"))
+        plt.pause(5)
+        plt.close()
+
 
     def print_results(self, results):
         """Print averaged performance metrics."""
@@ -201,3 +198,69 @@ class ModelTrainer:
             print(f"Model: {model_name}")
             for metric, value in avg_metrics.items():
                 print(f"  {metric}: {value:.4f}")
+
+    def plot_agumentations_impact(self, y_cols, results_dict, pca=False):
+        x_labels = y_cols
+        fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+        axs = axs.flatten()  # Flatten the 2D array of axes for easier indexing
+
+        for idx, model_name in enumerate(results_dict[y_cols[0]]):
+            acc = [np.mean(results_dict[label][model_name]['accuracy']) for label in x_labels]
+            sens = [np.mean(results_dict[label][model_name]['sensitivity']) for label in x_labels]
+            spec = [np.mean(results_dict[label][model_name]['specificity']) for label in x_labels]
+
+            axs[idx].plot(x_labels, acc, label="Accuracy")
+            axs[idx].plot(x_labels, sens, label="Sensitivity")
+            axs[idx].plot(x_labels, spec, label="Specificity")
+            axs[idx].set_ylim([0.2, 1])
+            axs[idx].set_xticks(range(len(x_labels)))
+            axs[idx].set_xticklabels(x_labels)
+            axs[idx].set_title(f"{model_name}")
+            axs[idx].legend()
+
+        pca_suffix = "(PCA)" if pca else ""
+        with open(os.path.join(self.output_path, f"results_dict{pca_suffix}.json"), "w") as outfile:
+            json.dump(results_dict, outfile)
+
+        title = f"CV Average Performances Across Different Augmentations {pca_suffix}"
+        plt.suptitle(title, fontsize=16)
+        plt.show(block=False)
+        plt.savefig(os.path.join(self.output_path, f"{title}.png"))
+        plt.pause(5)
+        plt.close()
+
+    def train_and_save_model(self, x_train, y_train, model_name, pca=False, save_model=False):
+        if pca:
+            x_train = self.convert_pca(x_train)
+
+        if model_name == "LogisticRegression_L1":
+            model = LogisticRegression(penalty='l1', solver='liblinear', random_state=42)
+            model.fit(x_train, y_train)
+        elif model_name == "RandomForest":
+            model = RandomForestClassifier(random_state=42)
+            model.fit(x_train, y_train)
+        elif model_name == "XGBoost":
+            model = XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss')
+            model.fit(x_train, y_train)
+        elif model_name == "NeuralNetwork":
+            model = self.train_nn_model(x_train, y_train)
+        else:
+            raise ValueError(f"Unsupported model name: {model_name}")
+
+        # Save the model
+        if save_model:
+            os.makedirs(self.output_path, exist_ok=True)
+            model_file = os.path.join(self.output_path, f"{model_name}.model")
+
+            if model_name in ["LogisticRegression_L1", "RandomForest", "XGBoost"]:
+                joblib.dump(model, model_file)
+            elif model_name == "NeuralNetwork":
+                torch.save(model.state_dict(), model_file)
+            else:
+                raise ValueError(f"Unsupported model name for saving: {model_name}")
+
+            print(f"Model saved to: {model_file}")
+        else:
+            print(f"Model had not been saved since output path is not listed in the config file")
+
+        return model
