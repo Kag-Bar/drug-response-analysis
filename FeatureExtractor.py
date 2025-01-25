@@ -1,31 +1,25 @@
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
-from sklearn.preprocessing import LabelEncoder
 from sklearn.decomposition import PCA
 import pandas as pd
 import numpy as np
 import logging
+import joblib
+import os
 from sklearn.feature_selection import SelectKBest, f_classif
-
 
 from DataHandler import DataHandler
 
 class FeatureExtractor(DataHandler):
     def __init__(self, cfg_path):
-        super().__init__(cfg_path)
         logging.basicConfig(level=logging.INFO)
 
-        self.x_train, self.x_test, self.y_train, self.y_test = self.train_test_split(test_size=0.15)
-        self.encode_categorical()
-        self.n_features = self.cfg.get("features_to_extract", 10)
-        self.pca_var_threh = self.cfg.get("pca_var_threh")
+        super().__init__(cfg_path)
 
-    def encode_categorical(self):
-        if 'Gender' in self.x_train.columns:
-            encoder = LabelEncoder()
-            self.x_train['Gender'] = encoder.fit_transform(self.x_train['Gender'])
-            self.x_test['Gender'] = encoder.transform(self.x_test['Gender'])
+        self.x_train, self.x_test, self.y_train, self.y_test = self.train_test_split(test_size=self.cfg.get("test_size", 0.15))
+        self.n_features = self.cfg.get("features_to_extract", 10)
+        self.pca_var_threh = self.cfg.get("pca_features", {}).get("pca_var_threh")
 
     def extract_features(self, include_xgb=False):
         logging.info("\nExtracting Features\n")
@@ -82,6 +76,7 @@ class FeatureExtractor(DataHandler):
                 if len(top_features) == self.n_features:
                     break
 
+        print(f"Chosen Features: {top_features}")
         return top_features
 
     def extract_features_pca(self):
@@ -107,14 +102,7 @@ class FeatureExtractor(DataHandler):
             n_features = self.n_features
 
         explained_variance = np.sum(pca.explained_variance_ratio_)
+        joblib.dump(pca, os.path.join(self.output_path, f"pca_{n_features}_model.pkl"))
 
         return pca, n_features, explained_variance
-
-# # Example usage:
-# extractor = FeatureExtractor(cfg_path='E:\Studies\pythonProject\drug-response-analysis\cfg.json')
-# selected_features = extractor.extract_features()
-# pca_x_train, pca_x_test, variance = extractor.select_features_with_pca(n_features=10)
-# print(f"Total Explained Variance: {variance:.2%}")
-#
-# print(selected_features)
 
