@@ -1,5 +1,8 @@
 {
   "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\gene_expression.csv",
   "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\meta_data.csv",
-  "norm_genes": false
+  "norm_genes": true,
+  "features_to_extract": 10,
+  "pca_var_threh": 0.9
+
 }
