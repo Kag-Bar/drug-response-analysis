@@ -23,7 +23,8 @@ def main():
         model_trainer.define_pca(pca, n_features)
 
     for model_name in feature_extractor.cfg['models_to_save']:
-        model_trainer.train_and_save_model(X_train, y_train, model_name, pca=pca_flag, save_model=True)
+        model = model_trainer.train_and_save_model(X_train, y_train, model_name, pca=pca_flag, save_model=True)
+        model_trainer.validate_model(model, X_test, y_test, model_name, pca=pca_flag)
 
 if __name__ == '__main__':
     main()
