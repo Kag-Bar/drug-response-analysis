@@ -21,7 +21,6 @@ class DataHandler:
 
         if not isinstance(cfg_path, str):
             raise ValueError(f"{cfg_path} must be a string pointing to the configuration file")
-
         try:
             with open(cfg_path, 'r') as file:
                 self.cfg = json.load(file)
@@ -40,7 +39,6 @@ class DataHandler:
 
         logging.info("\nLoading the CSV Dataframes\n")
         self.load_data()
-        self.gene_cols = self.genedata.columns.drop("SampleID").tolist()
         self.predict_cols = ['y']
 
         logging.info("\nPreforming Initial Data Exploration\n")
@@ -68,6 +66,7 @@ class DataHandler:
         self.genedata = pd.read_csv(self.cfg['genedata_path'], index_col=0).T
         self.genedata.index.name = "SampleID"
         self.genedata.reset_index(inplace=True)
+        self.gene_cols = self.genedata.columns.drop("SampleID").tolist()
 
         # Load metadata and preprocess it
         self.metadata = pd.read_csv(self.cfg['metadata_path'])
@@ -102,20 +101,25 @@ class DataHandler:
             logging.info("No singular columns found in metadata.")
 
         self.metadata.rename(columns={'disease activity score (das28)': 'das'}, inplace=True)
-        self.metadata['y'] = self.metadata['Response status'].str.lower().map({'responder': 1, 'non_responder': 0})
-        self.metadata.drop(columns=['Response status'], inplace=True)
+        if "Response status" in self.metadata.columns.to_list():
+            self.metadata['y'] = self.metadata['Response status'].str.lower().map({'responder': 1, 'non_responder': 0})
+            self.metadata.drop(columns=['Response status'], inplace=True)
 
-    def normalize_data(self):
+    def normalize_data(self, columns=None):
         """
         Normalize gene expression and 'das' columns based on standard z normalization.
         :return: None (modifies self.data)
         """
-        if self.cfg.get('norm_genes', False):
+        if columns:
             scaler = StandardScaler()
-            self.data[self.gene_cols] = scaler.fit_transform(self.data[self.gene_cols])
+            self.data[columns] = scaler.fit_transform(self.data[columns])
+        else:
+            if self.cfg.get('norm_genes', True):
+                scaler = StandardScaler()
+                self.data[self.gene_cols] = scaler.fit_transform(self.data[self.gene_cols])
 
-        if 'das' in self.data.columns:
-            self.data['das'] = (self.data['das'] - self.data['das'].mean(skipna=True)) / self.data['das'].std(skipna=True)
+            if 'das' in self.data.columns:
+                self.data['das'] = (self.data['das'] - self.data['das'].mean(skipna=True)) / self.data['das'].std(skipna=True)
 
         if self.save_data:
             self.data.to_csv(os.path.join(self.output_path, 'data_normalized.csv'))
@@ -126,10 +130,15 @@ class DataHandler:
             response value and disease score are missing
         :return: None (modifies self.data)
         """
-        all_nan_rows = len(self.data[self.data['y'].isna() & self.data['das'].isna()])
-        if all_nan_rows < rows_percent_to_remove*len(self.data):
+        if 'y' in self.data.columns.to_list():
+            condition = self.data['y'].isna() & self.data['das'].isna()
+        else:
+            condition = self.data['das'].isna()
+
+        all_nan_rows = len(self.data[condition])
+        if all_nan_rows < rows_percent_to_remove * len(self.data):
             logging.info(f"Removing {all_nan_rows} rows with missing Response and disease score")
-            self.data = self.data[~(self.data['y'].isna() & self.data['das'].isna())].reset_index(drop=True)
+            self.data = self.data[~condition].reset_index(drop=True)
 
     def analyze_data(self):
         """
