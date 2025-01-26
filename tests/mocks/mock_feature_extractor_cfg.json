@@ -1,0 +1,8 @@
+{
+  "genedata_path": "mocks/gene.csv",
+  "metadata_path": "mocks/metadata.csv",
+  "output_path": "./output",
+  "test_size": 0.2,
+  "features_to_extract": 5,
+  "pca_features": {"pca_var_threh": 0.9}
+}

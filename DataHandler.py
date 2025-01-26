@@ -24,15 +24,15 @@ class DataHandler:
 
         if not isinstance(cfg_path, str):
             raise ValueError(f"{cfg_path} must be a string pointing to the configuration file")
+        if not os.path.exists(cfg_path):
+            raise FileNotFoundError(f"Configuration file not found at {cfg_path}")
         try:
             with open(cfg_path, 'r') as file:
                 self.cfg = json.load(file)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found at {cfg_path}")
-        except json.JSONDecodeError:
-            raise ValueError(f"Error decoding JSON from the file: {cfg_path}")
+        except TypeError:
+            raise TypeError(f"The JSON file had not been properly written- must be str, bytes or bytearray")
 
-        self.plot_eda = self.cfg.get("plot_EDA", True)
+        self.plot_eda = self.cfg.get("plot_EDA", False)
         self.save_plots = self.cfg.get("save_plots", False)
         self.output_path = self.cfg.get("output_path")
         self.save_data = self.cfg.get("save_data")
@@ -181,8 +181,8 @@ class DataHandler:
         logging.info(f"Exploring genes correlation (calculating correlation, may take some time)")
         correlation = self.data[self.gene_cols].corrwith(self.data['y'])
         top_correlations = pd.concat([
-            correlation[correlation > 0].sort_values(ascending=False).head(10),
-            correlation[correlation < 0].sort_values().head(10)
+            correlation[correlation > 0].sort_values(ascending=False).head(min(len(self.data),10)),
+            correlation[correlation < 0].sort_values().head(min(len(self.data),10))
         ])
 
         if self.plot_eda:
@@ -229,102 +229,104 @@ class DataHandler:
         data_non_nan = self.data[~self.data['y'].isna()]  # Rows where y is not NaN
         data_nan = self.data[self.data['y'].isna()]  # Rows where y is NaN
 
-        # 2. Extract features (Genes cols only)
-        features_non_nan = data_non_nan[self.gene_cols]
-        features_non_nan = features_non_nan.to_numpy().astype(np.float64)
-        features_nan = data_nan[self.gene_cols]
+        if len(data_nan) > 0:
+            # 2. Extract features (Genes cols only)
+            features_non_nan = data_non_nan[self.gene_cols]
+            features_non_nan = features_non_nan.to_numpy().astype(np.float64)
+            features_nan = data_nan[self.gene_cols]
 
-        # 3. Initialize a list to store results
-        nearest_neighbors = []
+            # 3. Initialize a list to store results
+            nearest_neighbors = []
 
-        # Initialize the Nearest Neighbors model
-        knn = NearestNeighbors(n_neighbors=k, metric='euclidean')  # Euclidean distance for KNN
-        knn.fit(features_non_nan)
+            # Initialize the Nearest Neighbors model
+            knn = NearestNeighbors(n_neighbors=k, metric='euclidean')  # Euclidean distance for KNN
+            knn.fit(features_non_nan)
 
-        # 4. Calculate Cosine Similarity and MSE for each row where y is NaN
-        for index, row_nan in features_nan.iterrows():
-            row_nan_vector = row_nan.to_numpy().astype(np.float64).reshape(1, -1)
-            cosine_similarities = cosine_similarity(row_nan_vector, features_non_nan)
+            # 4. Calculate Cosine Similarity and MSE for each row where y is NaN
+            for index, row_nan in features_nan.iterrows():
+                row_nan_vector = row_nan.to_numpy().astype(np.float64).reshape(1, -1)
+                cosine_similarities = cosine_similarity(row_nan_vector, features_non_nan)
 
-            # Calculate MSE between row_nan and all rows in data_non_nan
-            mse_values = [mean_squared_error(row_nan_vector, row.reshape(1, -1)) for row in features_non_nan]
 
-            # Find the index of the nearest row based on Cosine Similarity and MSE
-            nearest_cosine_idx = np.argmax(cosine_similarities)
-            nearest_mse_idx = np.argmin(mse_values)
+                # Calculate MSE between row_nan and all rows in data_non_nan
+                mse_values = [mean_squared_error(row_nan_vector, row.reshape(1, -1)) for row in features_non_nan]
 
-            # Get the corresponding values
-            nearest_cosine_row = data_non_nan.iloc[nearest_cosine_idx]
-            nearest_mse_row = data_non_nan.iloc[nearest_mse_idx]
+                # Find the index of the nearest row based on Cosine Similarity and MSE
+                nearest_cosine_idx = np.argmax(cosine_similarities)
+                nearest_mse_idx = np.argmin(mse_values)
 
-            nearest_cosine_value = cosine_similarities[0, nearest_cosine_idx]
-            nearest_mse_value = mse_values[nearest_mse_idx]
+                # Get the corresponding values
+                nearest_cosine_row = data_non_nan.iloc[nearest_cosine_idx]
+                nearest_mse_row = data_non_nan.iloc[nearest_mse_idx]
 
-            # KNN
-            distances, indices = knn.kneighbors([row_nan_vector.flatten()], n_neighbors=1)
-            knn_nearest = data_non_nan.iloc[indices[0]]['SampleID'].values[0]
+                nearest_cosine_value = cosine_similarities[0, nearest_cosine_idx]
+                nearest_mse_value = mse_values[nearest_mse_idx]
 
-            # Add results to the list
-            nearest_neighbors.append({
-                'nan_row': data_nan.loc[index, 'SampleID'],
-                'nearest_cos': nearest_cosine_row['SampleID'],
-                'cos_sim': nearest_cosine_value,
-                'nearest_mse': nearest_mse_row['SampleID'],
-                'mse': nearest_mse_value,
-                'nearest_knn': knn_nearest
-            })
+                # KNN
+                distances, indices = knn.kneighbors([row_nan_vector.flatten()], n_neighbors=1)
+                knn_nearest = data_non_nan.iloc[indices[0]]['SampleID'].values[0]
 
-        # Convert the results into a DataFrame
-        nearest_neighbors_df = pd.DataFrame(nearest_neighbors)
+                # Add results to the list
+                nearest_neighbors.append({
+                    'nan_row': data_nan.loc[index, 'SampleID'],
+                    'nearest_cos': nearest_cosine_row['SampleID'],
+                    'cos_sim': nearest_cosine_value,
+                    'nearest_mse': nearest_mse_row['SampleID'],
+                    'mse': nearest_mse_value,
+                    'nearest_knn': knn_nearest
+                })
 
-        nearest_neighbors_df.sort_values(by=['cos_sim','mse'], ascending=[False, True], inplace=True)
-        if self.plot_eda:
-            plt.figure()
-            for i, row in nearest_neighbors_df.iterrows():
-                # Check if nearest row by MSE and Cosine Similarity are the same
-                if row['nearest_mse'] == row['nearest_cos'] and row['nearest_mse'] == row['nearest_knn']:
-                    # Plot as a big asterisk
-                    plt.scatter(row['cos_sim'], row['mse'], color='tab:blue', s=100, marker='*',
-                                label='Same Nearest Row')
-                    if row['mse'] < low_mse:
-                        plt.scatter(row['cos_sim'], row['mse'], color='tab:green', s=500, marker='o', alpha=0.2)
-                    elif row['mse'] < high_mse:
-                        plt.scatter(row['cos_sim'], row['mse'], color='tab:olive', s=500, marker='o', alpha=0.2)
+            # Convert the results into a DataFrame
+            nearest_neighbors_df = pd.DataFrame(nearest_neighbors)
+
+            nearest_neighbors_df.sort_values(by=['cos_sim','mse'], ascending=[False, True], inplace=True)
+            if self.plot_eda:
+                plt.figure()
+                for i, row in nearest_neighbors_df.iterrows():
+                    # Check if nearest row by MSE and Cosine Similarity are the same
+                    if row['nearest_mse'] == row['nearest_cos'] and row['nearest_mse'] == row['nearest_knn']:
+                        # Plot as a big asterisk
+                        plt.scatter(row['cos_sim'], row['mse'], color='tab:blue', s=100, marker='*',
+                                    label='Same Nearest Row')
+                        if row['mse'] < low_mse:
+                            plt.scatter(row['cos_sim'], row['mse'], color='tab:green', s=500, marker='o', alpha=0.2)
+                        elif row['mse'] < high_mse:
+                            plt.scatter(row['cos_sim'], row['mse'], color='tab:olive', s=500, marker='o', alpha=0.2)
+                    else:
+                        # Regular scatter plot
+                        plt.scatter(row['cos_sim'], row['mse'], color='tab:red', alpha=0.6)
+
+                # Add labels and title
+                plt.title('Cosine Similarity vs MSE')
+                plt.xlabel('Cosine Similarity')
+                plt.ylabel('MSE')
+                plt.show(block=False)
+                plt.savefig(os.path.join(self.output_path, "Cosine Similarity vs MSE.png"))
+                plt.pause(5)
+                plt.close()
+
+            nearest_neighbors_df = nearest_neighbors_df[
+                (nearest_neighbors_df['nearest_mse'] == nearest_neighbors_df['nearest_cos']) &
+                (nearest_neighbors_df['nearest_cos'] == nearest_neighbors_df['nearest_knn']) &
+                (nearest_neighbors_df['mse'] <= high_mse)
+                ]
+
+            self.data[f'y_augment_{low_mse}'] = np.nan
+            self.data[f'y_augment_{high_mse}'] = np.nan
+            for i, row in self.data.iterrows():
+                if math.isnan(row['y']):
+                    if row['SampleID'] in nearest_neighbors_df.nan_row.tolist():
+                        nearest_neighbors_row = nearest_neighbors_df[nearest_neighbors_df.nan_row == row['SampleID']]
+                        nearest = nearest_neighbors_row['nearest_mse'].values[0]
+                        if nearest_neighbors_row['mse'].values[0] <= high_mse:
+                            self.data.at[i, f'y_augment_{high_mse}'] = self.data[self.data['SampleID'] == nearest]['y'].values[0]
+                        if nearest_neighbors_row['mse'].values[0] <= low_mse:
+                            self.data.at[i, f'y_augment_{low_mse}'] = self.data[self.data['SampleID'] == nearest]['y'].values[0]
                 else:
-                    # Regular scatter plot
-                    plt.scatter(row['cos_sim'], row['mse'], color='tab:red', alpha=0.6)
+                    self.data.at[i, f'y_augment_{high_mse}'] = row['y']
+                    self.data.at[i, f'y_augment_{low_mse}'] = row['y']
 
-            # Add labels and title
-            plt.title('Cosine Similarity vs MSE')
-            plt.xlabel('Cosine Similarity')
-            plt.ylabel('MSE')
-            plt.show(block=False)
-            plt.savefig(os.path.join(self.output_path, "Cosine Similarity vs MSE.png"))
-            plt.pause(5)
-            plt.close()
-
-        nearest_neighbors_df = nearest_neighbors_df[
-            (nearest_neighbors_df['nearest_mse'] == nearest_neighbors_df['nearest_cos']) &
-            (nearest_neighbors_df['nearest_cos'] == nearest_neighbors_df['nearest_knn']) &
-            (nearest_neighbors_df['mse'] <= high_mse)
-            ]
-
-        self.data[f'y_augment_{low_mse}'] = np.nan
-        self.data[f'y_augment_{high_mse}'] = np.nan
-        for i, row in self.data.iterrows():
-            if math.isnan(row['y']):
-                if row['SampleID'] in nearest_neighbors_df.nan_row.tolist():
-                    nearest_neighbors_row = nearest_neighbors_df[nearest_neighbors_df.nan_row == row['SampleID']]
-                    nearest = nearest_neighbors_row['nearest_mse'].values[0]
-                    if nearest_neighbors_row['mse'].values[0] <= high_mse:
-                        self.data.at[i, f'y_augment_{high_mse}'] = self.data[self.data['SampleID'] == nearest]['y'].values[0]
-                    if nearest_neighbors_row['mse'].values[0] <= low_mse:
-                        self.data.at[i, f'y_augment_{low_mse}'] = self.data[self.data['SampleID'] == nearest]['y'].values[0]
-            else:
-                self.data.at[i, f'y_augment_{high_mse}'] = row['y']
-                self.data.at[i, f'y_augment_{low_mse}'] = row['y']
-
-        self.predict_cols.extend([f'y_augment_{low_mse}', f'y_augment_{high_mse}'])
+            self.predict_cols.extend([f'y_augment_{low_mse}', f'y_augment_{high_mse}'])
 
     def visualize_gene_distribution(self, gene):
         """
@@ -404,3 +406,4 @@ class DataHandler:
         if 'Gender' in self.data.columns:
             encoder = LabelEncoder()
             self.data['Gender'] = encoder.fit_transform(self.data['Gender'])
+
