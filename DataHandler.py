@@ -13,9 +13,12 @@ from sklearn.model_selection import KFold
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-
-
 class DataHandler:
+    """
+    Handles the loading, preprocessing, and exploration of data. It provides methods for loading data from a CSV,
+        handling missing values, normalizing the data, and performing initial exploratory data analysis (EDA).
+    :param cfg_path: Path to the configuration file (must be a string).
+    """
     def __init__(self, cfg_path):
         logging.basicConfig(level=logging.INFO)
 
@@ -108,6 +111,7 @@ class DataHandler:
     def normalize_data(self, columns=None):
         """
         Normalize gene expression and 'das' columns based on standard z normalization.
+        :param columns - Specify which columns to normalize, if None - normalize all numeric columns (genes+das)
         :return: None (modifies self.data)
         """
         if columns:
@@ -206,6 +210,21 @@ class DataHandler:
         return top_correlations.index.to_list()
 
     def handle_missing_values(self, k=3, low_mse=0.15, high_mse=0.25):
+        """
+        Handles missing value imputation by using a combination of cosine similarity, mean squared error (MSE),
+            and k-nearest neighbors (KNN) to fill in missing target values ('y').
+            The function performs the following steps:
+
+        1. Separates rows where the target value 'y' is missing and not missing.
+        2. Uses the KNN model to find the closest rows in terms of feature values (genes).
+        3. For each row with a missing 'y', computes cosine similarity and MSE to find the nearest neighbors.
+        4. Plots the relationship between cosine similarity and MSE for each imputation, distinguishing different levels of MSE.
+        5. Augments the data by filling in missing 'y' values based on the nearest rows.
+        6. Adds columns for augmented 'y' values at different MSE thresholds.
+        :param k: The number of neighbors to use for KNN (default is 3).
+        :param low_mse: The threshold for low MSE (default is 0.15).
+        :param high_mse: The threshold for high MSE (default is 0.25).
+        """
         # 1. Separate rows where y is NaN and where y is not NaN
         data_non_nan = self.data[~self.data['y'].isna()]  # Rows where y is not NaN
         data_nan = self.data[self.data['y'].isna()]  # Rows where y is NaN
@@ -326,9 +345,12 @@ class DataHandler:
 
     def train_test_split(self, y_col='y', feature_cols=None, test_size=0.2, random_state=42):
         """
-        Split the data into training and testing sets.
-        :param test_size: Proportion of the data to include in the test split.
-        :param random_state: Random seed for reproducibility.
+        Splits the dataset into training and testing sets.
+        :param y_col: The name of the target variable column (default is 'y').
+        :param feature_cols: List of feature columns to use. If None, uses all columns except targets and ID columns.
+        :param test_size: The proportion of the data to use for the test split (default is 0.2).
+        :param random_state: The random seed for reproducibility (default is 42).
+        :return: The training and testing splits for features (X) and target (y).
         """
         if not feature_cols:
             feature_cols = self.data.columns.to_list()
@@ -346,8 +368,11 @@ class DataHandler:
     def cross_val_split(self, y_col='y', feature_cols=None, n_splits=5, random_state=42):
         """
         Split the data into cross-validation sets.
-        :param n_splits: Number of splits for cross-validation.
-        :param random_state: Random seed for reproducibility.
+        :param y_col: The name of the target variable column (default is 'y').
+        :param feature_cols: List of feature columns to use. If None, uses all columns except targets and ID columns.
+        :param n_splits: The number of splits (default is 5).
+        :param random_state: The random seed for reproducibility (default is 42).
+        :return: A CV list containing the n splits each containing X_train, X_test, y_train, y_test tuple.
         """
         if not feature_cols:
             feature_cols = self.data.columns.to_list()
@@ -371,9 +396,11 @@ class DataHandler:
         return cv_splits
 
     def y_cols(self):
+        """Returns a list of column names starting from the 'y' column to the end of the dataset."""
         return self.data.columns[self.data.columns.get_loc("y"):].to_list()
 
     def encode_categorical(self):
+        """Encodes categorical features in the dataset, currently specifically for 'Gender' column."""
         if 'Gender' in self.data.columns:
             encoder = LabelEncoder()
             self.data['Gender'] = encoder.fit_transform(self.data['Gender'])

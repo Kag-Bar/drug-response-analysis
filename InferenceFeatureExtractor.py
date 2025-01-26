@@ -5,6 +5,10 @@ from sklearn.model_selection import train_test_split
 from FeatureExtractor import FeatureExtractor
 
 class InferenceFeatureExtractor(FeatureExtractor):
+    """
+    Initializes the InferenceFeatureExtractor class by loading a configuration file and setting up the relevant settings.
+    :param cfg_path: Path to the configuration file (must be a string).
+    """
     def __init__(self, cfg_path):
         logging.basicConfig(level=logging.INFO)
 
@@ -22,6 +26,13 @@ class InferenceFeatureExtractor(FeatureExtractor):
         self.load_data()
 
     def prepare_data(self, training_or_inference='inference'):
+        """
+        Prepares the data for either training or inference based on the configuration.
+        :param training_or_inference: Specifies whether the preparation is for 'training' or 'inference'.
+        :returns:
+            - For 'training': Returns the training and testing data splits (X_train, X_test, y_train, y_test).
+            - For 'inference': Returns the prepared data for inference.
+        """
         if self.cfg.get("use_pca", False):
             self.remove_all_nans()
             self.encode_categorical()
@@ -35,10 +46,9 @@ class InferenceFeatureExtractor(FeatureExtractor):
 
         if training_or_inference == "training":
             X_train, X_test, y_train, y_test = self.train_test_split(y_col='y', test_size=self.cfg.get("test_size", 0.15))
+            return X_train, X_test, y_train, y_test
         else:
-            X_train, X_test, y_train, y_test = self.data, None, None, None
-
-        return X_train, X_test, y_train, y_test
+            return self.data
 
     def train_test_split(self, y_col='y', test_size=0.2, random_state=42):
         """
@@ -47,7 +57,7 @@ class InferenceFeatureExtractor(FeatureExtractor):
         :param random_state: Random seed for reproducibility.
         """
 
-        X = self.data[self.data[y_col].notna()]
+        X = self.data[self.data[y_col].notna()].drop(columns=[y_col])
         y = self.data[self.data[y_col].notna()][y_col]
 
         if test_size == 0:
