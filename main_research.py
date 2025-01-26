@@ -10,13 +10,6 @@ def main():
         default='cfg.json',
         help="Path to the configuration JSON file"
     )
-    parser.add_argument(
-        "--save_models",
-        default=True,
-        action="store_true",
-        help="Flag to save trained models"
-    )
-
     args = parser.parse_args()
 
     feature_extractor = FeatureExtractor(args.cfg_path)
@@ -48,13 +41,6 @@ def main():
             model_trainer.plot_agumentations_impact(y_cols, results_pca, pca=True)
 
     print("Finished training exploration")
-
-    if args.save_models:
-        X_train, X_test, y_train, y_test = feature_extractor.train_test_split(y_col='y',
-                                                                              feature_cols=feature_cols,
-                                                                              test_size=0.15)
-        for model_name in feature_extractor.cfg['models_to_save']:
-            model_trainer.train_and_save_model(X_train, y_train, model_name, pca=pca_flag, save_model=True)
 
 if __name__ == '__main__':
     main()
