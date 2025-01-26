@@ -1,4 +1,23 @@
 {
-  "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\gene_expression.csv",
-  "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\meta_data.csv"
+  "normalized_data_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\data_normalized.csv",
+  "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\gene_expression.csv",
+  "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\meta_data.csv",
+  "output_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_research",
+  "plot_EDA": true,
+  "save_plots": true,
+  "save_data": true,
+  "norm_genes": true,
+  "features_to_extract": 10,
+  "test_size": 0.15,
+  "NeuralNetwork_cfg": {
+    "num_epochs": 10,
+    "lr": 0.001,
+    "weight_decay": 1e-4
+  },
+  "chosen_features": [],
+  "pca_features": {
+    "pca": true,
+    "n_features": null,
+    "pca_var_threh": 0.9
+  }
 }
