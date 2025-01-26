@@ -12,6 +12,11 @@ from sklearn.feature_selection import SelectKBest, f_classif
 from DataHandler import DataHandler
 
 class FeatureExtractor(DataHandler):
+    """
+    Extracts features from data and splits it into training and testing sets.
+    :param cfg_path: Path to the configuration file.
+    """
+
     def __init__(self, cfg_path):
         logging.basicConfig(level=logging.INFO)
 
@@ -22,6 +27,13 @@ class FeatureExtractor(DataHandler):
         self.pca_var_threh = self.cfg.get("pca_features", {}).get("pca_var_threh")
 
     def extract_features(self, include_xgb=False):
+        """
+        Extracts the most relevant features based on various methods, including ANOVA, Lasso (Logistic Regression with L1 penalty),
+        Random Forest, and optionally XGBoost. The features are ranked and the top ones are selected while considering correlations.
+
+        :param include_xgb: Whether to include XGBoost for feature selection (default: False).
+        :return: List of top features.
+        """
         logging.info("\nExtracting Features\n")
         # ANOVA filter
         anova_selector = SelectKBest(score_func=f_classif, k=2*self.n_features)

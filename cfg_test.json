@@ -2,12 +2,10 @@
   "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\gene_expression.csv",
   "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\meta_data.csv",
   "output_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval",
-  "test_size": 0.2,
-  "models_to_save": [
-    "NeuralNetwork",
-    "LogisticRegression_L1"
-  ],
-  "models_params": {},
+  "models_path": {
+    "NeuralNetwork": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval\\NeuralNetwork.model",
+    "LogisticRegression_L1": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval\\LogisticRegression_L1.model"
+  },
   "chosen_features": [
     "1555656_at",
     "216883_x_at",
