@@ -6,6 +6,7 @@ from SimpleClassificationNetwork import SimpleClassificationNetwork
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import logging
 import torch
 import torch.nn as nn
@@ -16,6 +17,10 @@ import json
 
 
 class ModelTrainer:
+    """
+    Base class for training models.
+    :param FeatureExtractor: The feature extractor object used to extract features for model training.
+    """
     def __init__(self, FeatureExtractor):
         logging.basicConfig(level=logging.INFO)
         self.pca = None
@@ -26,16 +31,31 @@ class ModelTrainer:
         self.output_path = self.feature_extractor.cfg.get("output_path")
 
     def initialize_result_dict(self):
+        """
+        Initializes a dictionary to store model performance metrics.
+        :returns: A dictionary with model names as keys and lists of metrics
+        (accuracy, sensitivity, specificity, precision, recall, auc) as values.
+        """
         self.results = {
             model_name: {"accuracy": [], "sensitivity": [], "specificity": [], "precision": [], "recall": [], "auc": []}
             for model_name in ["LogisticRegression_L1", "RandomForest", "XGBoost", "NeuralNetwork"]
         }
 
     def define_pca(self, pca, n_features):
+        """
+        Defines the PCA configuration.
+        :param pca: The PCA object to be used for dimensionality reduction.
+        :param n_features: The number of features to retain after PCA transformation.
+        """
         self.pca = pca
         self.pca_n_features = n_features
 
     def convert_pca(self, x_set):
+        """
+        Applies PCA transformation to the input dataset.
+        :param x_set: The dataset to be transformed using PCA.
+        :returns: A DataFrame containing the PCA-transformed features, with columns named "PC1", "PC2", ..., "PCn".
+        """
         if not self.pca:
             logging.warning("PCA must be first defined using define_pca")
 
@@ -47,7 +67,12 @@ class ModelTrainer:
         return x_pca
 
     def train_nn_model(self, x_train, y_train):
-        """Train and evaluate the neural network."""
+        """
+        Train and evaluate the neural network.
+        :param x_train: The train set to train on.
+        :param y_train: The train set results.
+        :returns: model: The trained neural network model.
+        """
         input_size = x_train.shape[1]  # Number of features
 
         # Get Training Params
@@ -77,6 +102,14 @@ class ModelTrainer:
         return model
 
     def eval_nn(self, model, x_test):
+        """
+        Evaluates a neural network model on the given test data.
+        :param model: The neural network model to evaluate.
+        :param x_test: The test dataset to be used for evaluation.
+        :returns: A tuple containing:
+            - y_pred: Predicted class labels.
+            - y_pred_prob: Predicted probabilities of the positive class.
+        """
         x_test_tensor = torch.tensor(x_test.values, dtype=torch.float32)
 
         # Evaluate model
@@ -87,7 +120,13 @@ class ModelTrainer:
             return y_pred, y_pred_prob.numpy().max(axis=1)
 
     def train(self, cv_splits, y_col, pca=False):
-
+        """
+        Trains and evaluates multiple models using cross-validation.
+        :param cv_splits: Cross-validation splits containing train-test data (X_train, X_test, y_train, y_test).
+        :param y_col: The target column used for predictions.
+        :param pca: Whether to apply PCA transformation to the data. Defaults to False.
+        :returns: A dictionary containing averaged results for all models across CV splits.
+        """
         self.initialize_result_dict()
         for x_train, x_test, y_train, y_test in cv_splits:
             if pca:
@@ -117,8 +156,18 @@ class ModelTrainer:
         self.plot_results(len(y_train), pca, y_col)
         return self.results
 
-    def evaluate_model(self, model, x_test, y_test, model_name):
-        """Evaluate a model and store metrics."""
+    def evaluate_model(self, model, x_test, y_test, model_name, validation=False):
+        """
+        Evaluates a model's performance using various metrics and stores the results.
+
+        :param model: The model to evaluate.
+        :param x_test: The test features.
+        :param y_test: The true labels for the test data.
+        :param model_name: The name of the model being evaluated (e.g., "LogisticRegression_L1").
+        :param validation: Whether the function is being called for validation purposes. Defaults to False.
+        :returns: If validation is True, returns confusion matrix values (tn, fp, fn, tp) along with accuracy, sensitivity, and specificity.
+                 Otherwise, stores the metrics (accuracy, sensitivity, specificity, precision, recall, AUC) in `self.results` for the given model.
+        """
         if model_name == "NeuralNetwork":
             y_pred, y_pred_prob = self.eval_nn(model, x_test)
         else:
@@ -130,16 +179,19 @@ class ModelTrainer:
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0  # Also known as recall
         specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
 
-        self.results[model_name]["accuracy"].append(accuracy)
-        self.results[model_name]["sensitivity"].append(sensitivity)
-        self.results[model_name]["specificity"].append(specificity)
-        self.results[model_name]["precision"].append(precision_score(y_test, y_pred, average='binary', zero_division=0))
-        self.results[model_name]["recall"].append(recall_score(y_test, y_pred, average='binary', zero_division=0))
-        self.results[model_name]["auc"].append(
-            roc_auc_score(y_test, y_pred_prob) if y_pred_prob is not None else None)
+        if validation:
+            return tn, fp, fn, tp, accuracy, sensitivity, specificity
+        else:
+            self.results[model_name]["accuracy"].append(accuracy)
+            self.results[model_name]["sensitivity"].append(sensitivity)
+            self.results[model_name]["specificity"].append(specificity)
+            self.results[model_name]["precision"].append(precision_score(y_test, y_pred, average='binary', zero_division=0))
+            self.results[model_name]["recall"].append(recall_score(y_test, y_pred, average='binary', zero_division=0))
+            self.results[model_name]["auc"].append(
+                roc_auc_score(y_test, y_pred_prob) if y_pred_prob is not None else None)
 
     def plot_results(self, N_y, pca=False, y_col=None):
-        """Plot accuracy, sensitivity, and specificity as boxplots."""
+        """Plot accuracy, sensitivity, and specificity as boxplots across different models (N_y = number of validation point)."""
         metrics = ["accuracy", "sensitivity", "specificity"]
         model_names = list(self.results.keys())
         colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:gray']
@@ -200,6 +252,14 @@ class ModelTrainer:
                 print(f"  {metric}: {value:.4f}")
 
     def plot_agumentations_impact(self, y_cols, results_dict, pca=False):
+        """
+        Plots the impact of different augmentations on model performance and saves the results.
+
+        :param y_cols: List of different augmentations names to the dataset.
+        :param results_dict: Dictionary containing evaluation results for different models and augmentations.
+        :param pca: A flag indicating whether PCA was applied (optional, default is False).
+        :returns: None. Displays the plot and saves the results to a JSON file.
+        """
         x_labels = y_cols
         fig, axs = plt.subplots(2, 2, figsize=(10, 8))
         axs = axs.flatten()  # Flatten the 2D array of axes for easier indexing
@@ -230,6 +290,16 @@ class ModelTrainer:
         plt.close()
 
     def train_and_save_model(self, x_train, y_train, model_name, pca=False, save_model=False):
+        """
+        Trains a model based on the specified model name and optionally applies PCA to the training data.
+        :param x_train: Training data features.
+        :param y_train: Training data labels.
+        :param model_name: Name of the model to train.
+            Supported models are "LogisticRegression_L1", "RandomForest", "XGBoost", and "NeuralNetwork".
+        :param pca: Flag to indicate whether to apply PCA transformation to the training data (default is False).
+        :param save_model: Flag to indicate whether to save the trained model (default is False).
+        :returns: Trained model object.
+        """
         if pca:
             x_train = self.convert_pca(x_train)
 
@@ -264,3 +334,34 @@ class ModelTrainer:
             print(f"Model had not been saved since output path is not listed in the config file")
 
         return model
+
+    def validate_model(self, model, x_test, y_test, model_name, pca=False):
+        """
+        Validates the given model on the test set, computes metrics, and plots the confusion matrix.
+
+        :param model: The model to be evaluated.
+        :param x_test: Test feature set.
+        :param y_test: Test labels.
+        :param model_name: Name of the model (for labeling in plots).
+        :param pca: Whether to apply PCA transformation to the test set.
+        """
+        if pca:
+            x_test = self.convert_pca(x_test)
+
+        (tn, fp, fn, tp,
+         accuracy, sensitivity, specificity) = self.evaluate_model(model, x_test, y_test, model_name, validation=True)
+
+        # Create confusion matrix
+        cm = np.array([[tn, fp], [fn, tp]])
+        labels = ['False', 'True']
+
+        plt.figure()
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=labels, yticklabels=labels, cbar=False)
+        plt.xlabel('Predicted Label')
+        plt.ylabel('True Label')
+        plt.title(f'{model_name}\n'
+                  f'Accuracy: {accuracy:.2f} | Sensitivity: {sensitivity:.2f} | Specificity: {specificity:.2f}')
+        plt.show(block=False)
+        plt.savefig(os.path.join(self.output_path, f"{model_name}_CM.png"))
+        plt.pause(5)
+        plt.close()
