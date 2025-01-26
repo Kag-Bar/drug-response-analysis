@@ -35,8 +35,9 @@ class FeatureExtractor(DataHandler):
         :return: List of top features.
         """
         logging.info("\nExtracting Features\n")
+        k_features = min(2*self.n_features, len(self.x_train.columns.to_list()))
         # ANOVA filter
-        anova_selector = SelectKBest(score_func=f_classif, k=2*self.n_features)
+        anova_selector = SelectKBest(score_func=f_classif, k=k_features)
         anova_selector.fit(self.x_train, self.y_train)
         anova_features = self.x_train.columns[anova_selector.get_support()].tolist()
 
@@ -44,20 +45,20 @@ class FeatureExtractor(DataHandler):
         logistic_model = LogisticRegression(penalty='l1', solver='liblinear', random_state=42)
         logistic_model.fit(self.x_train, self.y_train)
         coef_importances = pd.Series(np.abs(logistic_model.coef_[0]), index=self.x_train.columns)
-        lasso_features = coef_importances.nlargest(2*self.n_features).index.tolist()
+        lasso_features = coef_importances.nlargest(k_features).index.tolist()
 
         # Random Forest
         rf_model = RandomForestClassifier(random_state=42)
         rf_model.fit(self.x_train, self.y_train)
         rf_importances = pd.Series(rf_model.feature_importances_, index=self.x_train.columns)
-        rf_features = rf_importances.nlargest(2*self.n_features).index.tolist()
+        rf_features = rf_importances.nlargest(k_features).index.tolist()
 
         # XGBoost
         if include_xgb:
             xgb_model = XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='logloss')
             xgb_model.fit(self.x_train, self.y_train)
             xgb_importances = pd.Series(xgb_model.feature_importances_, index=self.x_train.columns)
-            xgb_features = xgb_importances.nlargest(2*self.n_features).index.tolist()
+            xgb_features = xgb_importances.nlargest(k_features).index.tolist()
         else:
             xgb_features = []
 
