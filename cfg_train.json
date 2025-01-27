@@ -1,7 +1,7 @@
 {
-  "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\gene_expression.csv",
-  "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\meta_data.csv",
-  "output_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_research\\spearman",
+  "genedata_path": "absolute path to csv\\gene_expression.csv",
+  "metadata_path": "absolute path to csv\\meta_data.csv",
+  "output_path": "absolute path to output\\output",
   "test_size": 0.2,
   "models_to_save": [
     "NeuralNetwork",
