@@ -42,7 +42,7 @@ The main takeaways from this analysis are as follows:
   - `pca_path`: Path to the pre-trained PCA model.  
 
 - **cfg_test**:  
-  - `models_path`: Dictionary mapping model names to their corresponding pre-trained model paths.
+  - `models_path`: Dictionary mapping model names to their corresponding pre-trained model paths., approved models are: "LogisticRegression", "RandomForest", "XGBoost", "NeuralNetwork"
 
 #### Scripts:
 - **main_research**:  
