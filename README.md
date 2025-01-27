@@ -169,3 +169,69 @@ The chosen features are as follows:
 1. Using the _spearman_ correlation: `"226888_at", "210715_s_at", "216883_x_at", "1555656_at", "207958_at", "1569741_at", "244307_s_at", "235705_at", "212509_s_at", "222841_s_at"`
 2. Using the _pearson_ correlation: `"1555656_at", "216883_x_at", "226888_at", "210715_s_at", "221566_s_at", "244307_s_at", "235705_at", "235695_at", "1569527_at", "222841_s_at"`
 It is worth noting that 8 out of the 10 selected features exhibit high correlation in the results during the EDA stage, supporting the assumption of their relevance.
+
+## 3. ModelTrainer - Model performance and interpretation.
+
+### a. Selected Models
+Since this is a classification problem, the following models were chosen:  
+- Logistic Regression with L2 penalty: This was used to prevent over-reliance on a single parameter without silencing other features (avoiding sparsity after feature selection).  
+- Random Forest (RF).  
+- XGBoost (XGB).  
+- A relatively basic fully connected neural network (NN) with 5 layers, including dropout layers to prevent overfitting and avoid unnecessary complexity.
+
+### b. Selected Features
+The features used were those described in section 2, for the reasons outlined there.
+
+### c. Metrics for Evaluation
+As this is a classification problem, and specifically a problem of drug responsiveness where sensitivity and specificity are of utmost importance, the metrics chosen to evaluate model performance were:  
+- Overall accuracy  
+- Sensitivity  
+- Specificity  
+
+### d. Training and Validation
+Due to the limited dataset size, 5-split cross-validation was performed for evaluation. The performance results reflect the average values across the folds.
+
+### e. Comparison: Original Features vs. PCA Features
+As shown in the following graphs:  
+![CV Average Performances Across Different Augmentations ](https://github.com/user-attachments/assets/360ceb98-903c-4711-80cf-ce32815d9ff3)
+
+![CV Average Performances Across Different Augmentations (PCA)](https://github.com/user-attachments/assets/c8156fc9-2ff3-4923-ab4b-a4af8701e4c5)
+ 
+
+It is evident that model performance on PCA-based features was significantly inferior compared to the "organic" features from the dataset. This trend persisted also when using features selected via Pearson correlation. Consequently, the PCA method was abandoned.
+
+### f. Missing Values Study 
+As demonstarted in the first plot in section 3.e. it is noticeable that additional data points are agumented, the performance of all models across all metrics declines. This behavior is consistent even when selecting features based on Pearson correlation, as shown in the following graph:  
+![CV Average Performances Across Different Augmentations ](https://github.com/user-attachments/assets/20a50a4d-dc77-49d4-ba38-a366a5b965f1)
+
+As a result, it was decided that the final model would only be trained on the original, reliable data ("organic"), without augmentation.
+
+### g. Final Model Selection
+Given the insights from the previous sections:  
+- Organic features selected using a method incorporating Spearman correlation were chosen.  
+- The final model selected was the neural network, as it demonstrated the highest average performance with the lowest variance compared to other models, despite the XGBoost model also showing impressive performance (hence it was retained as well).
+- 37 training points vs 10 test points
+
+![Model Performance Metrics (N=37 with y)](https://github.com/user-attachments/assets/21ecd99a-9ca0-463b-989c-8994bff2e04e)
+
+
+Interestingly, when the models were trained on features extracted using Pearson correlation (which assumes linear relationships between variables and the outcome), there was a notable improvement in the performance of Logistic Regression, which encourages linear relationships. In contrast, there was a decline in the performance of decision tree-based models like RF and XGBoost - 
+
+![Model Performance Metrics (N=37 with y)](https://github.com/user-attachments/assets/d9a12356-f5c2-4ece-889d-0846e0f609d8)
+
+This trend can also be observed via the figures in 3.e. and 3.f.
+
+These results align with logical expectations, highlighting the neural network's robustness to both linear and non-linear relationships, and the impact of linerity correlated chosen features.
+
+### h. Final Model Performance
+The final model's performance was evaluated on a one-time 80-20 (37 vs 10 data points) train-test split using organic features selected via Spearman correlation. The results are illustrated in the following graphs:  
+
+- For the neural network:  
+![NeuralNetwork_CM](https://github.com/user-attachments/assets/862a023e-5426-4b67-8731-8863d665171c)
+
+
+- For XGBoost:  
+![XGBoost_CM](https://github.com/user-attachments/assets/31e2500b-9cfc-400b-8993-664db18d2a44)
+
+
+
