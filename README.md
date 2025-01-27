@@ -57,7 +57,7 @@ Contains a folder with a set of unit tests for standard input-output validations
 
 ## Methods and Analysis
 
-### 1. DataHandler
+### 1. DataHandler - Key insights from EDA
 
 **a. Loading the data**  
 The model expects the metadata to include at least three columns with the names:  
@@ -124,3 +124,48 @@ It is important to note that an outlier analysis was not conducted for two reaso
 
 A more detailed outlier analysis may be possible in the future with additional data collection.
 
+
+### 2. FeatureExtractor
+
+**a. Feature Extraction Methods**
+Two primary methods were used for feature extraction: ANOVA (a filter method) and model-based methods.  
+Wrapper methods (such as SFS or chi-test) were avoided due to their extreme slowness for data of this scale and the computational power limitations available.
+
+**b. Train-Test Split**
+Since some methods are model-based, the `FeatureExtractor` object performs an initial random split of the data into train-test sets, which are used to evaluate the model's performance with the selected features.
+
+**c. Additional Methods**
+In addition to ANOVA, two other methods were examined:  
+- Logistic regression with L1 regularization (Lasso).  
+- Random Forest (RF).  
+
+Although XGBoost (XGB) could also be evaluated, it was largely excluded due to its significantly slower speed compared to RF when analyzing ~60K features. However, this can be configured differently if needed.
+
+**d. Feature Selection**
+From each method described in section 2.c., 2× `the desired number of features` (10, as specified in the exercise instructions, but configurable) are selected based on their highest weights in the model.  
+The final set of features is chosen based on the highest agreement between the methods described in section c.2. and the highly correlated features identified during the EDA phase.
+
+**e. Handling Disagreements**
+If there is no agreement between the methods (Lasso, RF, ANOVA, and correlation) on the desired number of features, the remaining features are added based on the feature importance ranking in the Lasso method. This is because Lasso uniquely applies direct penalties (L1 penalty) to unimportant features, which is particularly important when dealing with ~60K features.
+
+**f. PCA for Dimensionality Reduction**
+Another feature extraction method explored involved dimensionality reduction using PCA.  
+Two approaches can be applied for PCA:  
+1. Defining the desired number of features in advance (less preferable).  
+2. Defining the minimum variance that the eigenvectors should explain in the data.  
+
+In this exercise, a requirement was set for at least **90% of the data variance** to be explained by the PCA features, which resulted in **30 extracted eigenvectors**.
+
+**g. Rationale for Excluding Statistical Feature Aggregations**
+Features such as the **mean/median response of genes per sample**, or the **maximum/minimum response per sample**, were not added.  
+The reasoning for this decision is as follows:  
+1. In the absence of prior biological knowledge or reliable online resources, it was assumed that some genes are entirely irrelevant to the final outcome.  
+2. The potential for introducing significant noise into the results.  
+
+As such, I did not find value in including these types of statistical aggregations. However, these could be investigated in future studies, given relevant biological research.
+
+**h. Chosen Features**
+The chosen features are as follows:
+1. Using the _spearman_ correlation: `"226888_at", "210715_s_at", "216883_x_at", "1555656_at", "207958_at", "1569741_at", "244307_s_at", "235705_at", "212509_s_at", "222841_s_at"`
+2. Using the _pearson_ correlation: `"1555656_at", "216883_x_at", "226888_at", "210715_s_at", "221566_s_at", "244307_s_at", "235705_at", "235695_at", "1569527_at", "222841_s_at"`
+It is worth noting that 8 out of the 10 selected features exhibit high correlation in the results during the EDA stage, supporting the assumption of their relevance.
