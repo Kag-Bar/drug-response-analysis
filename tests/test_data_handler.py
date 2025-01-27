@@ -1,26 +1,8 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from DataHandler import DataHandler
 import os
-import pytest
 import pandas as pd
-from io import StringIO
-import json
-
-import json
-
-# config_data = {
-#     "genedata_path": "mocks/gene.csv",
-#     "metadata_path": "mocks/metadata.csv",
-#     "output_path": "./output"
-# }
-#
-# config_file_path = os.path.abspath('tests/mocks/mock_cfg_load_data.json')
-#
-# # Writing the configuration file correctly
-# with open(config_file_path, 'w') as f:
-#     json.dump(config_data, f)
-
 
 class TestDataHandler(unittest.TestCase):
 

@@ -38,7 +38,7 @@ class ModelTrainer:
         """
         self.results = {
             model_name: {"accuracy": [], "sensitivity": [], "specificity": [], "precision": [], "recall": [], "auc": []}
-            for model_name in ["LogisticRegression_L1", "RandomForest", "XGBoost", "NeuralNetwork"]
+            for model_name in ["LogisticRegression", "RandomForest", "XGBoost", "NeuralNetwork"]
         }
 
     def define_pca(self, pca, n_features):
@@ -133,10 +133,10 @@ class ModelTrainer:
                 x_train = self.convert_pca(x_train)
                 x_test = self.convert_pca(x_test)
 
-            # Logistic Regression with L1
-            logistic_model = LogisticRegression(penalty='l1', solver='liblinear', random_state=42)
+            # Logistic Regression with L2
+            logistic_model = LogisticRegression(penalty='l2', solver='liblinear', random_state=42)
             logistic_model.fit(x_train, y_train)
-            self.evaluate_model(logistic_model, x_test, y_test, "LogisticRegression_L1")
+            self.evaluate_model(logistic_model, x_test, y_test, "LogisticRegression")
 
             # Random Forest
             rf_model = RandomForestClassifier(random_state=42)
@@ -163,7 +163,7 @@ class ModelTrainer:
         :param model: The model to evaluate.
         :param x_test: The test features.
         :param y_test: The true labels for the test data.
-        :param model_name: The name of the model being evaluated (e.g., "LogisticRegression_L1").
+        :param model_name: The name of the model being evaluated (e.g., "LogisticRegression").
         :param validation: Whether the function is being called for validation purposes. Defaults to False.
         :returns: If validation is True, returns confusion matrix values (tn, fp, fn, tp) along with accuracy, sensitivity, and specificity.
                  Otherwise, stores the metrics (accuracy, sensitivity, specificity, precision, recall, AUC) in `self.results` for the given model.
@@ -295,7 +295,7 @@ class ModelTrainer:
         :param x_train: Training data features.
         :param y_train: Training data labels.
         :param model_name: Name of the model to train.
-            Supported models are "LogisticRegression_L1", "RandomForest", "XGBoost", and "NeuralNetwork".
+            Supported models are "LogisticRegression", "RandomForest", "XGBoost", and "NeuralNetwork".
         :param pca: Flag to indicate whether to apply PCA transformation to the training data (default is False).
         :param save_model: Flag to indicate whether to save the trained model (default is False).
         :returns: Trained model object.
@@ -303,8 +303,8 @@ class ModelTrainer:
         if pca:
             x_train = self.convert_pca(x_train)
 
-        if model_name == "LogisticRegression_L1":
-            model = LogisticRegression(penalty='l1', solver='liblinear', random_state=42)
+        if model_name == "LogisticRegression":
+            model = LogisticRegression(penalty='l2', solver='liblinear', random_state=42)
             model.fit(x_train, y_train)
         elif model_name == "RandomForest":
             model = RandomForestClassifier(random_state=42)
@@ -322,7 +322,7 @@ class ModelTrainer:
             os.makedirs(self.output_path, exist_ok=True)
             model_file = os.path.join(self.output_path, f"{model_name}.model")
 
-            if model_name in ["LogisticRegression_L1", "RandomForest", "XGBoost"]:
+            if model_name in ["LogisticRegression", "RandomForest", "XGBoost"]:
                 joblib.dump(model, model_file)
             elif model_name == "NeuralNetwork":
                 torch.save(model.state_dict(), model_file)

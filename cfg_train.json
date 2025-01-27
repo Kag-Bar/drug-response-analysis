@@ -1,25 +1,14 @@
 {
-  "genedata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\gene_expression.csv",
-  "metadata_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\data\\meta_data.csv",
-  "output_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval",
+  "genedata_path": "absolute path to csv\\gene_expression.csv",
+  "metadata_path": "absolute path to csv\\meta_data.csv",
+  "output_path": "absolute path to output\\output",
   "test_size": 0.2,
   "models_to_save": [
     "NeuralNetwork",
-    "LogisticRegression_L1"
+    "XGBoost"
   ],
   "models_params": {},
-  "chosen_features": [
-    "1555656_at",
-    "216883_x_at",
-    "226888_at",
-    "210715_s_at",
-    "221566_s_at",
-    "244307_s_at",
-    "235705_at",
-    "235695_at",
-    "1569527_at",
-    "222841_s_at"
-  ],
+  "chosen_features": ["226888_at", "210715_s_at", "216883_x_at", "1555656_at", "207958_at", "1569741_at", "244307_s_at", "235705_at", "212509_s_at", "222841_s_at"],
   "use_pca": false,
   "pca": {
     "pca_path": null,
