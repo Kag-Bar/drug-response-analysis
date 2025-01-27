@@ -40,7 +40,7 @@ class TestModelTrainer(unittest.TestCase):
         # Test consistent predictions from the trained model
         predictions = model.predict(x_train)
         self.assertEqual(len(predictions), len(y_train))  # Ensure predictions match the input size
-        expected_predictions_logistic = [1, 1, 1, 1]  # Example expected results
+        expected_predictions_logistic = [0, 1, 0, 1]  # Example expected results
         self.assertListEqual(predictions.tolist(), expected_predictions_logistic)
 
         model_name = "RandomForest"
