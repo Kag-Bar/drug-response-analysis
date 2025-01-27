@@ -33,9 +33,9 @@ class DataHandler:
             raise TypeError(f"The JSON file had not been properly written- must be str, bytes or bytearray")
 
         self.plot_eda = self.cfg.get("plot_EDA", False)
-        self.save_plots = self.cfg.get("save_plots", False)
         self.output_path = self.cfg.get("output_path")
         self.save_data = self.cfg.get("save_data")
+        self.corr_method = self.cfg.get("corr_method", "spearman")
         self.genedata = None
         self.metadata = None
         self.data = None
@@ -46,7 +46,6 @@ class DataHandler:
 
         logging.info("\nPreforming Initial Data Exploration\n")
         self.remove_all_nans()
-        self.top_correlations = self.analyze_data()
 
         if self.cfg.get("normalized_data_path"):
             logging.info("\nLoading Pre-Normalized Data CSV Dataframe\n")
@@ -57,9 +56,10 @@ class DataHandler:
             self.handle_missing_values()
 
             logging.info("\nNormalizing The Data\n")
-            self.encode_categorical()
             self.normalize_data()
             logging.info("\nFinished Normalizing Data\n")
+
+        self.top_correlations = self.analyze_data()
 
     def load_data(self):
         """
@@ -103,6 +103,7 @@ class DataHandler:
         else:
             logging.info("No singular columns found in metadata.")
 
+        self.encode_categorical()
         self.metadata.rename(columns={'disease activity score (das28)': 'das'}, inplace=True)
         if "Response status" in self.metadata.columns.to_list():
             self.metadata['y'] = self.metadata['Response status'].str.lower().map({'responder': 1, 'non_responder': 0})
@@ -179,7 +180,7 @@ class DataHandler:
 
         # Calculate gene correlation
         logging.info(f"Exploring genes correlation (calculating correlation, may take some time)")
-        correlation = self.data[self.gene_cols].corrwith(self.data['y'])
+        correlation = self.data[self.gene_cols].corrwith(self.data['y'], method=self.corr_method)
         top_correlations = pd.concat([
             correlation[correlation > 0].sort_values(ascending=False).head(min(len(self.data),10)),
             correlation[correlation < 0].sort_values().head(min(len(self.data),10))
@@ -201,10 +202,10 @@ class DataHandler:
                 ax.set_xticks([])  # Remove x-axis ticks for clarity
                 cbar = plt.colorbar(scatter, ax=ax)
                 cbar.set_label('y Value')
-            plt.suptitle('Gene Correlation')
+            plt.suptitle(f'Gene {self.corr_method.title()} Correlation')
             plt.show(block=False)
-            plt.savefig(os.path.join(self.output_path, "Initial Gene Correlation.png"))
-            plt.pause(10)
+            plt.savefig(os.path.join(self.output_path, f"Initial Gene {self.corr_method.title()} Correlation.png"))
+            plt.pause(15)
             plt.close()
 
         return top_correlations.index.to_list()
@@ -403,7 +404,7 @@ class DataHandler:
 
     def encode_categorical(self):
         """Encodes categorical features in the dataset, currently specifically for 'Gender' column."""
-        if 'Gender' in self.data.columns:
+        if 'Gender' in self.metadata.columns:
             encoder = LabelEncoder()
-            self.data['Gender'] = encoder.fit_transform(self.data['Gender'])
+            self.metadata['Gender'] = encoder.fit_transform(self.metadata['Gender'])
 

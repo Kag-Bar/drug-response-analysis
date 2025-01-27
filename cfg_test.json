@@ -4,7 +4,7 @@
   "output_path": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval",
   "models_path": {
     "NeuralNetwork": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval\\NeuralNetwork.model",
-    "LogisticRegression_L1": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval\\LogisticRegression_L1.model"
+    "LogisticRegression": "E:\\Studies\\pythonProject\\drug-response-analysis\\output_train_and_eval\\LogisticRegression_L1.model"
   },
   "chosen_features": [
     "1555656_at",

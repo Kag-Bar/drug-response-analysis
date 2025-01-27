@@ -14,7 +14,7 @@ class TestModelTrainer(unittest.TestCase):
     def test_initialize_result_dict(self):
         """Test that initialize_result_dict creates the expected dictionary structure."""
         self.model_trainer.initialize_result_dict()
-        expected_keys = ["LogisticRegression_L1", "RandomForest", "XGBoost", "NeuralNetwork"]
+        expected_keys = ["LogisticRegression", "RandomForest", "XGBoost", "NeuralNetwork"]
         for model_name in expected_keys:
             self.assertIn(model_name, self.model_trainer.results)
             metrics = self.model_trainer.results[model_name]
@@ -33,7 +33,7 @@ class TestModelTrainer(unittest.TestCase):
         y_train = [0, 1, 0, 1]
 
         # Train a model and check its validity
-        model_name = "LogisticRegression_L1"
+        model_name = "LogisticRegression"
         model = self.model_trainer.train_and_save_model(x_train, y_train, model_name, pca=False, save_model=False)
         self.assertIsNotNone(model)  # Ensure the model is returned
         self.assertTrue(hasattr(model, "predict"))  # Check the model has a predict method

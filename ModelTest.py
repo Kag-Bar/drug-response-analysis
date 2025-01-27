@@ -22,7 +22,7 @@ class ModelTest(ModelTrainer):
     def load_model(self, model_name, model_path):
         """
         Loads a saved model.
-        :param model_name: Name of the model to load (e.g., "LogisticRegression_L1", "RandomForest").
+        :param model_name: Name of the model to load (e.g., "LogisticRegression", "RandomForest").
         :param model_path: The path to the saved model.
         """
         self.model_name = model_name
@@ -33,7 +33,7 @@ class ModelTest(ModelTrainer):
             self.model.load_state_dict(torch.load(model_path))
             self.model.eval()
 
-        elif model_name in ["LogisticRegression_L1", "RandomForest", "XGBoost"]:
+        elif model_name in ["LogisticRegression", "RandomForest", "XGBoost"]:
             # Load the model using joblib
             self.model = joblib.load(model_path)
 
